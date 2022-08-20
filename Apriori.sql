@@ -2,8 +2,12 @@ DROP PROCEDURE IF EXISTS Apriori;
 
 DELIMITER $$
 
-CREATE PROCEDURE Apriori(IN transactionTableName VARCHAR(16), IN supportThreshold FLOAT)
+CREATE PROCEDURE Apriori(IN transactionTableName VARCHAR(16), IN supportThreshold FLOAT, IN maxLength INT)
 BEGIN
+
+    #Controllare che maxLength sia maggiore di 0
+
+    #Controllare che supportThreshold sia compreso tra 0 e 1
 
     DECLARE _N_Transaction INT DEFAULT 0;
     DECLARE _N_Item INT DEFAULT (
@@ -32,6 +36,7 @@ BEGIN
     EXECUTE _statement;
 
     SET _N_Transaction = @_tmp;
+    SET @_table_name = 'Large_ItemSet_1';
 
     # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     # Creazione della tabella per memorizzare i k-itemset che hanno supporto superiore alla soglia
@@ -71,9 +76,11 @@ BEGIN
 
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
-    SET @_k = 2;
+    SET @_k = 1;
 apriori_step:
-    WHILE @_k <= _N_Item DO
+    WHILE (@_k < maxLength) AND (@_k < _N_Item) DO
+
+        SET @_k = @_k+1;
 
 	    SET @_table_name = CONCAT('Large_ItemSet_',@_k);
 
@@ -169,98 +176,80 @@ apriori_step:
         PREPARE _statement FROM @_query;
         EXECUTE _statement;
 
-		IF NOT @_empty_result THEN
 
-        # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-        # Visualizza tabella supporti al passo @_k
-		/*
-            SET @_query = CONCAT('SELECT * FROM  ',@_table_name);    
-            PREPARE _statement FROM @_query;
-            EXECUTE _statement;
-		 */
-        # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-        
-			SET @_k = @_k+1;
-		ELSE
-			# _k viene decrementato in caso di uscita dal ciclo in modo da avere memorizzato il numero di item per ogni k-item,
-            # sarà utile in seguito per accedere all'ultima tabella creata contenente la lista finale dei large k-itemset
-			SET @_k = @_k-1;
+        IF @_empty_result THEN
 
 			SET @_query = CONCAT('DROP TABLE IF EXISTS `',@_table_name,'`');
 	        PREPARE _statement FROM @_query;
 		    EXECUTE _statement;
 
+			# _k viene decrementato in caso di uscita dal ciclo in modo da avere memorizzato il numero di item per ogni k-item,
+            # sarà utile in seguito per accedere all'ultima tabella creata contenente la lista finale dei large k-itemset
+			SET @_k = @_k-1;
 			SET @_table_name = CONCAT('Large_ItemSet_',@_k);
 
 			LEAVE apriori_step;
-		END IF;
+        END IF;
+
     END WHILE apriori_step;
 
-    # SQL_SAFE_UPDATES viene disabilitato dovendo successivamente fare un update senza clausola WHERE
-    SET SQL_SAFE_UPDATES = 0;
-
-# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-# Calcolo della confidenza per ogni regola associativa
-    SET @_confidence_step = 1;
-    WHILE @_confidence_step < @_k DO
-
-	# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-	# Viene aggiunta una colonna Confidenza_n dove n indica la confidenza quando l'itemset X (antecedente) contiene n item
-        SET @_query = CONCAT('ALTER TABLE ',@_table_name,' ADD COLUMN Confidence_',@_confidence_step,' DECIMAL(3,2) DEFAULT 0;');
-		PREPARE _statement FROM @_query;
-		EXECUTE _statement;
-	# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-
-	# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-	# Lista delle condizioni per il join
-		SET @_joinConditions = '';
-		SET @i = 1;
-		WHILE @i <= @_confidence_step DO
-			SET @_joinConditions = CONCAT(@_joinConditions, 'Item_',@i,IF(@i = @_confidence_step,'',','));
-			SET @i = @i+1;
-		END WHILE;
-	# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-        
-	# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-	# Confidenza_n assume il valore di SUPP(X U Y)/SUPP(X) per ogni record,
-    # SUPP(X U Y) viene preso dall'ultima TEMPORARY TABLE Large_itemset generata contenente il supporto per ogni k-itemset
-    # e SUPP(X) invece viene preso da Large_itemset_(_confidence_step) TEMPORARY TABLE generata nei passi precedenti
-    # contenete il supporto di X
-		SET @_query = CONCAT('UPDATE ',@_table_name,' XY INNER JOIN Large_ItemSet_',@_confidence_step,' X USING(',@_joinConditions,') SET Confidence_',@_confidence_step,' = XY.Support/X.Support;');
-        PREPARE _statement FROM @_query;
-		EXECUTE _statement;
-	# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-
-	# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-	# La TEMPORARY TABLE Large_itemset_(_confidence_step) viene elimina non essendo più necessare nei passi successivi
-        SET @_query = CONCAT('DROP TABLE IF EXISTS Large_ItemSet_',@_confidence_step);
-        PREPARE _statement FROM @_query;
-		EXECUTE _statement;
-	# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-
-		SET @_confidence_step = @_confidence_step+1;
-    END WHILE;
-    
-	SET SQL_SAFE_UPDATES = 1;
-
-	# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-	# Crea la tabella finale con supporto e confidenza per ogni regola associativa
-		DROP TEMPORARY TABLE IF EXISTS _Result;
-		SET @_query = CONCAT('CREATE TEMPORARY TABLE _Result AS (SELECT * FROM  ',@_table_name,' ORDER BY Support)');
-		PREPARE _statement FROM @_query;
-		EXECUTE _statement;
-	# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-    
-    # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-	# Eliminazione della tabella non più necessaria
-		SET @_query = CONCAT('DROP TEMPORARY TABLE IF EXISTS ',@_table_name); 
-		PREPARE _statement FROM @_query;
-		EXECUTE _statement;
-	# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-    
-    SELECT * FROM _Result;
-
     DROP TABLE IF EXISTS C;
+
+    IF maxLength > 1 THEN
+        # SQL_SAFE_UPDATES viene disabilitato dovendo successivamente fare un update senza clausola WHERE
+        SET SQL_SAFE_UPDATES = 0;
+
+    # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    # Calcolo della confidenza per ogni regola associativa
+        SET @_confidence_step = 1;
+        WHILE @_confidence_step < @_k DO
+
+        # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+        # Viene aggiunta una colonna Confidenza_n dove n indica la confidenza quando l'itemset X (antecedente) contiene n item
+            SET @_query = CONCAT('ALTER TABLE ',@_table_name,' ADD COLUMN Confidence_',@_confidence_step,' DECIMAL(3,2) DEFAULT 0;');
+            PREPARE _statement FROM @_query;
+            EXECUTE _statement;
+        # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+
+        # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+        # Lista delle condizioni per il join
+            SET @_joinConditions = '';
+            SET @i = 1;
+            WHILE @i <= @_confidence_step DO
+                SET @_joinConditions = CONCAT(@_joinConditions, 'Item_',@i,IF(@i = @_confidence_step,'',','));
+                SET @i = @i+1;
+            END WHILE;
+        # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+
+        # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+        # Confidenza_n assume il valore di SUPP(X U Y)/SUPP(X) per ogni record,
+        # SUPP(X U Y) viene preso dall'ultima TEMPORARY TABLE Large_itemset generata contenente il supporto per ogni k-itemset
+        # e SUPP(X) invece viene preso da Large_itemset_(_confidence_step) TEMPORARY TABLE generata nei passi precedenti
+        # contenete il supporto di X
+            SET @_query = CONCAT('UPDATE ',@_table_name,' XY INNER JOIN Large_ItemSet_',@_confidence_step,' X USING(',@_joinConditions,') SET Confidence_',@_confidence_step,' = XY.Support/X.Support;');
+            PREPARE _statement FROM @_query;
+            EXECUTE _statement;
+        # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+
+        # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+        # La TABLE Large_itemset_(_confidence_step) viene elimina non essendo più necessare nei passi successivi
+
+            SET @_query = CONCAT('DROP TABLE IF EXISTS Large_ItemSet_',@_confidence_step);
+            PREPARE _statement FROM @_query;
+            EXECUTE _statement;
+
+        # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+
+            SET @_confidence_step = @_confidence_step+1;
+        END WHILE;
+
+        SET @_query = CONCAT('RENAME TABLE Large_ItemSet_',@_confidence_step,' TO Apriori_Result');
+        PREPARE _statement FROM @_query;
+        EXECUTE _statement;
+
+        SET SQL_SAFE_UPDATES = 1;
+
+    END IF;
 
 END $$
 
