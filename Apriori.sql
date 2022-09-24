@@ -5,9 +5,6 @@ DELIMITER $$
 CREATE PROCEDURE Apriori(IN transactionTableName VARCHAR(16), IN supportThreshold FLOAT, IN maxLength INT)
 BEGIN
 
-    #Controllare che maxLength sia maggiore di 0
-
-    #Controllare che supportThreshold sia compreso tra 0 e 1
 
     DECLARE _N_Transaction INT DEFAULT 0;
     DECLARE _N_Item INT DEFAULT (
@@ -29,6 +26,16 @@ BEGIN
         ) AS D WHERE D.COLUMN_NAME <> 'ID';
 
     DECLARE CONTINUE HANDLER FOR NOT FOUND SET _End = 1;
+
+     IF maxLength <= 0 THEN
+        SIGNAL SQLSTATE '45000'
+        SET MESSAGE_TEXT = 'maxLength must be greater than 0';
+    END IF;
+
+     IF supportThreshold <= 0 OR supportThreshold > 1 THEN
+        SIGNAL SQLSTATE '45000'
+        SET MESSAGE_TEXT = 'support Threshold must be a number in the range ]0,1] ';
+    END IF;
 
     # Conteggio delle transazioni
     SET @_query = CONCAT('SELECT COUNT(*) INTO @_tmp FROM `',transactionTableName,'`');
@@ -195,12 +202,12 @@ apriori_step:
 
     DROP TABLE IF EXISTS C;
 
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+# Calcolo della confidenza per ogni regola associativa
     IF maxLength > 1 THEN
         # SQL_SAFE_UPDATES viene disabilitato dovendo successivamente fare un update senza clausola WHERE
         SET SQL_SAFE_UPDATES = 0;
 
-    # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-    # Calcolo della confidenza per ogni regola associativa
         SET @_confidence_step = 1;
         WHILE @_confidence_step < @_k DO
 
@@ -231,25 +238,14 @@ apriori_step:
             EXECUTE _statement;
         # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
-        # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-        # La TABLE Large_itemset_(_confidence_step) viene elimina non essendo più necessare nei passi successivi
-
-            SET @_query = CONCAT('DROP TABLE IF EXISTS Large_ItemSet_',@_confidence_step);
-            PREPARE _statement FROM @_query;
-            EXECUTE _statement;
-
-        # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-
             SET @_confidence_step = @_confidence_step+1;
         END WHILE;
-
-        SET @_query = CONCAT('RENAME TABLE Large_ItemSet_',@_confidence_step,' TO Apriori_Result');
-        PREPARE _statement FROM @_query;
-        EXECUTE _statement;
 
         SET SQL_SAFE_UPDATES = 1;
 
     END IF;
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+
 
 END $$
 
