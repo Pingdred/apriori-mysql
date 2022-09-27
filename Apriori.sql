@@ -34,7 +34,7 @@ BEGIN
 
      IF supportThreshold <= 0 OR supportThreshold > 1 THEN
         SIGNAL SQLSTATE '45000'
-        SET MESSAGE_TEXT = 'support Threshold must be a number in the range ]0,1] ';
+        SET MESSAGE_TEXT = 'supportThreshold must be a number in the range ]0,1]';
     END IF;
 
     # Conteggio delle transazioni
@@ -50,7 +50,7 @@ BEGIN
         DROP TABLE IF EXISTS Large_ItemSet_1;
         CREATE TABLE Large_ItemSet_1(
             Item_1 VARCHAR(255),
-            Support DECIMAL(3,2)
+            Support FLOAT
         );
     # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
@@ -121,7 +121,7 @@ apriori_step:
     # di k elementi di ogni (k-1)-itemset in modo da avere alla fine già ogni regola associativa e calcolarne successivamente la confidenza
 		DROP TABLE IF EXISTS C;
 		SET @_query = CONCAT('CREATE TABLE C AS ( SELECT CONCAT(',@_select,'''`'',L2.Item_',@_k-1,',''`'') AS K_Item FROM `Large_ItemSet_',@_k-1,'` L1 CROSS JOIN `Large_ItemSet_',@_k-1,'` L2 WHERE', @_whereCondition ,' );');
-	    PREPARE _statement FROM @_query;
+        PREPARE _statement FROM @_query;
 		EXECUTE _statement;
 	# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
@@ -139,7 +139,7 @@ apriori_step:
             SET @i = @i+1;
         END WHILE;
 
-        SET @_query = CONCAT(@_query,'Support DECIMAL(3,2));');
+        SET @_query = CONCAT(@_query,' Support FLOAT DEFAULT 0);');
         PREPARE _statement FROM @_query;
         EXECUTE _statement;
 	# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -147,6 +147,7 @@ apriori_step:
 	# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 	# Passo di Pruning, si scorre l'insieme C degli itemset candidati con un cursore e se ne calcola il supporto, se è maggiore o uguale alla soglia
 	# il k-itemset viene inserito nella tabella Large_Itemset_list contentenete il supporto calcolato per ogni k-itemset
+
 		BEGIN
 			DECLARE _CursorData TEXT;
             DECLARE _End INTEGER DEFAULT 0;
@@ -169,9 +170,9 @@ apriori_step:
 
 				#Un k-itemset viene inserito nella tabella Large_Itemset_list solo se supera il supporto scelto
 				IF @_support/_N_Transaction >= supportThreshold THEN
-					SET @_query = CONCAT('INSERT INTO `',@_table_name,'` VALUES(', REPLACE(_CursorData,'`','''') ,',',@_support/_N_Transaction,')');
-                    PREPARE _statement FROM @_query;
-					EXECUTE _statement;
+				    SET @_query = CONCAT('INSERT INTO `',@_table_name,'` VALUES(', REPLACE(_CursorData,'`','''') ,',',@_support/_N_Transaction,')');
+				    PREPARE _statement FROM @_query;
+                    EXECUTE _statement;
 				END IF;
 
 			END LOOP _Fetch;
@@ -182,7 +183,6 @@ apriori_step:
 	    SET @_query = CONCAT('SELECT NOT EXISTS(SELECT * FROM  ',@_table_name,') INTO @_empty_result');
         PREPARE _statement FROM @_query;
         EXECUTE _statement;
-
 
         IF @_empty_result THEN
 
@@ -198,12 +198,9 @@ apriori_step:
 			LEAVE apriori_step;
         END IF;
 
-    END WHILE apriori_step;
-
-    DROP TABLE IF EXISTS C;
-
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # Calcolo della confidenza per ogni regola associativa
+
     IF maxLength > 1 THEN
         # SQL_SAFE_UPDATES viene disabilitato dovendo successivamente fare un update senza clausola WHERE
         SET SQL_SAFE_UPDATES = 0;
@@ -213,7 +210,7 @@ apriori_step:
 
         # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
         # Viene aggiunta una colonna Confidenza_n dove n indica la confidenza quando l'itemset X (antecedente) contiene n item
-            SET @_query = CONCAT('ALTER TABLE ',@_table_name,' ADD COLUMN Confidence_',@_confidence_step,' DECIMAL(3,2) DEFAULT 0;');
+            SET @_query = CONCAT('ALTER TABLE ',@_table_name,' ADD COLUMN Confidence_',@_confidence_step,' FLOAT DEFAULT 0;');
             PREPARE _statement FROM @_query;
             EXECUTE _statement;
         # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -245,6 +242,10 @@ apriori_step:
 
     END IF;
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+
+    END WHILE apriori_step;
+
+    DROP TABLE IF EXISTS C;
 
 
 END $$
