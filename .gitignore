@@ -1,2 +1,7 @@
 .idea
 docs
+
+*.txt
+*.py
+*.csv
+*.xlsx
