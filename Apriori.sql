@@ -27,12 +27,12 @@ BEGIN
 
     DECLARE CONTINUE HANDLER FOR NOT FOUND SET _End = 1;
 
-     IF maxLength <= 0 THEN
+    IF maxLength <= 0 THEN
         SIGNAL SQLSTATE '45000'
         SET MESSAGE_TEXT = 'maxLength must be greater than 0';
     END IF;
 
-     IF supportThreshold <= 0 OR supportThreshold > 1 THEN
+    IF supportThreshold <= 0 OR supportThreshold > 1 THEN
         SIGNAL SQLSTATE '45000'
         SET MESSAGE_TEXT = 'supportThreshold must be a number in the range ]0,1]';
     END IF;
@@ -66,7 +66,8 @@ BEGIN
                 LEAVE _Fetch;
             END IF;
 
-            SET @_query = CONCAT('SELECT SUM(`',_ItemName,'`) INTO @_support FROM `T`');
+            # Calcolo supporto itemset
+            SET @_query = CONCAT('SELECT COUNT(*) INTO @_support FROM `',transactionTableName,'` WHERE `',_ItemName,'` IS TRUE');
             PREPARE _statement FROM @_query;
             EXECUTE _statement;
 
@@ -82,7 +83,6 @@ BEGIN
     # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-
     SET @_k = 1;
 apriori_step:
     WHILE (@_k < maxLength) AND (@_k < _N_Item) DO
@@ -104,7 +104,6 @@ apriori_step:
 			SET @i = @i+1;
 		END WHILE;
 	# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-
 
 	# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 	# Lista degli Item da proiettare dopo il Join
@@ -246,7 +245,6 @@ apriori_step:
     END WHILE apriori_step;
 
     DROP TABLE IF EXISTS C;
-
 
 END $$
 
