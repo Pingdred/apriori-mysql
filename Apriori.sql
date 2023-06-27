@@ -183,7 +183,7 @@ apriori_step:
 				SET @_tmp = _CursorData;
 				SET @_tmp = REPLACE(@_tmp,',',' AND ');
 
-# 			    # Calculate the support of the ItemSet
+ 			    # Calculate the support of the ItemSet
 				SET @_query = CONCAT('SELECT SUM(IF(',@_tmp,', 1, 0)) INTO @_support FROM `T`');
                 PREPARE _statement FROM @_query;
 				EXECUTE _statement;
