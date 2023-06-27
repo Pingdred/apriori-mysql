@@ -16,9 +16,9 @@ BEGIN
     DECLARE _ItemName VARCHAR(255);
     DECLARE _End INTEGER DEFAULT 0;
 
-# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-# Transaction table cursor created by extracting the transaction table column names from the 
+# Transaction table cursor created by extracting the transaction table column names from the
 # information schema
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     DECLARE _Cursor CURSOR FOR
         SELECT *
         FROM (
@@ -31,8 +31,8 @@ BEGIN
     DECLARE CONTINUE HANDLER FOR NOT FOUND SET _End = 1;
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
-# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # Input parameters boundaries check
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     IF itemSetSize <= 0 THEN
         SIGNAL SQLSTATE '45000'
         SET MESSAGE_TEXT = 'maxItemSetSize must be greater than 0';
@@ -44,8 +44,8 @@ BEGIN
     END IF;
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
-# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # Transaction counting
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     SET @_query = CONCAT('SELECT COUNT(*) INTO @_tmp FROM `',transactionTableName,'`');
     PREPARE _statement FROM @_query;
     EXECUTE _statement;
@@ -53,9 +53,9 @@ BEGIN
     SET _N_Transaction = @_tmp;
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
-# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # Creation of the table Large_ItemSet_1 to store the 1-ItemSet that have support greater than or
 # equal to the chosen support threshold
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     DROP TABLE IF EXISTS Large_ItemSet_1;
     CREATE TABLE Large_ItemSet_1(
         Item_1 VARCHAR(255),
@@ -65,11 +65,10 @@ BEGIN
     SET @_table_name = 'Large_ItemSet_1';
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
-# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # First pruning step, the set C (at step 1, set C is the list of items) of the candidate ItemSets
 # is scrolled and foreach itemSet its support is calculated, if it exceeds the chosen support threshold the 1-ItemSet
 # is inserted in the Large_ItemSet_1 table containing the calculated support for each 1-ItemSet.
-
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     OPEN _Cursor;
     _Fetch: LOOP
         FETCH _Cursor INTO _ItemName;
@@ -95,10 +94,10 @@ BEGIN
     CLOSE _Cursor;
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
-# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # This loop does the following:
 # - Join step: generates the set C of the candidate ItemSets;
 # - Pruning step: selection of k-ItemSet with support above the threshold
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
     SET @_k = 1;
 apriori_step:
@@ -107,10 +106,9 @@ apriori_step:
         SET @_k = @_k+1;
 	    SET @_table_name = CONCAT('Large_ItemSet_',@_k);
 
-	# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-	# Creation of table C containing the candidate k-ItemSets. C has a single column K_ItemSet, which
+    # Creation of table C containing the candidate k-ItemSets. C has a single column K_ItemSet, which
 	# contains the items in the following format: "`soda`,`rolls/buns`,`other vegetables`,`whole milk`".
-
+	# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
         # Generating the join conditions for the inner join
 		SET @_whereCondition = '';
 		SET @i = 1;
@@ -139,9 +137,9 @@ apriori_step:
 		EXECUTE _statement;
 	# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
-	# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-	# Creation of the table Large_ItemSet_k to store the k-ItemSet that have support greater than or
+    # Creation of the table Large_ItemSet_k to store the k-ItemSet that have support greater than or
     # equal to the chosen threshold
+	# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 	    SET @_query = CONCAT('DROP TABLE IF EXISTS `',@_table_name,'`');
 	    PREPARE _statement FROM @_query;
 		EXECUTE _statement;
@@ -159,11 +157,10 @@ apriori_step:
         EXECUTE _statement;
 	# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
-	# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-	# Pruning step, the set C of the candidate ItemSets is scrolled and foreach ItemSet its support
+    # Pruning step, the set C of the candidate ItemSets is scrolled and foreach ItemSet its support
     # is calculated, if greater than or equal the chosen support threshold the k-ItemSet is inserted
     # in the Large_ItemSet_k table containing the calculated support for each k-ItemSet.
-
+	# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 		BEGIN
 			DECLARE _CursorData TEXT;
             DECLARE _End INTEGER DEFAULT 0;
@@ -201,8 +198,8 @@ apriori_step:
         END ;
 	# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
-    # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     # Check if the table Large_ItemSet_K is empty
+    # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 	    SET @_query = CONCAT('SELECT NOT EXISTS(SELECT 1 FROM  ',@_table_name,') INTO @_empty_result');
         PREPARE _statement FROM @_query;
         EXECUTE _statement;
@@ -222,9 +219,8 @@ apriori_step:
 
     END WHILE apriori_step;
 
-# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # Calculate the confidence for each associative rule
-
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     SET @_table_name = CONCAT('Large_ItemSet_',@_k);
 
     IF itemSetSize > 1 AND @_k > 1 THEN
@@ -235,16 +231,16 @@ apriori_step:
         SET @_n = 1;
         WHILE @_n < @_k DO
 
-        # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
         # A Confidence_n column is added to the Large_ItemSet_k table, n indicates the confidence
         # when ItemSet X (the antecedent of the rule) contains n items
+        # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
             SET @_query = CONCAT('ALTER TABLE ',@_table_name,' ADD COLUMN Confidence_',@_n,' FLOAT DEFAULT 0;');
             PREPARE _statement FROM @_query;
             EXECUTE _statement;
         # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
-        # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
         # Creating join conditions
+        # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
             SET @_joinConditions = '';
             SET @i = 1;
             WHILE @i <= @_n DO
@@ -258,8 +254,8 @@ apriori_step:
             END WHILE;
         # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
+        # Confidence calculation for each associative rule.
         # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-        # Confidence calculation for each associative rule with X ().
             SET @_query = CONCAT('UPDATE ',@_table_name,' XY INNER JOIN Large_ItemSet_',@_n,' X USING(',@_joinConditions,') SET Confidence_',@_n,' = XY.Support/X.Support;');
             PREPARE _statement FROM @_query;
             EXECUTE _statement;
