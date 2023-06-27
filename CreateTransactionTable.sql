@@ -15,17 +15,18 @@ BEGIN
 
     DECLARE _TransactionID INT DEFAULT 0;
 
-    DECLARE _Finito BOOL DEFAULT FALSE;
+    DECLARE _End BOOL DEFAULT FALSE;
 
     DECLARE _Cursor CURSOR FOR
-    SELECT * FROM Dataset D ORDER BY D.MemberNumber, D._Date;
+    SELECT * FROM Groceries_Dataset D ORDER BY D.MemberNumber, D._Date;
 
-    DECLARE CONTINUE HANDLER FOR NOT FOUND SET _Finito = TRUE;
+    DECLARE CONTINUE HANDLER FOR NOT FOUND SET _End = TRUE;
 
     SET group_concat_max_len = 1000000;
 
 # CREAZIONE DELLA TABELLA DELLE TRANSAZIONI
-#_________________________________________________________________________________________
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+
     DROP TABLE IF EXISTS T ;
 
     SET @TransactionTable = 'CREATE TABLE T (ID INT PRIMARY KEY';
@@ -33,7 +34,7 @@ BEGIN
     SELECT GROUP_CONCAT( CONCAT(ItemDescription, ' BOOLEAN DEFAULT FALSE') SEPARATOR ' ')
     FROM (
         SELECT DISTINCT CONCAT(',`', ItemDescription, '`') AS ItemDescription
-        FROM Dataset
+        FROM Groceries_Dataset
     ) AS D
     INTO @tmp;
 
@@ -41,13 +42,13 @@ BEGIN
 
     PREPARE stmt FROM @TransactionTable;
     EXECUTE stmt;
-#_________________________________________________________________________________________
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
     OPEN _Cursor;
         _Fetch: LOOP
             FETCH _Cursor INTO _MemberNumber, _Date, _Item;
 
-            IF _Finito IS TRUE THEN
+            IF _End IS TRUE THEN
                 LEAVE _Fetch;
             END IF;
 
