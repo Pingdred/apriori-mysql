@@ -1,5 +1,8 @@
--- Active: 1687468123942@@127.0.0.1@3306@Groceries
-CREATE DEFINER=`root`@`%` PROCEDURE `CreateTransactionTable`()
+DROP PROCEDURE IF EXISTS CreateTransactionTable;
+
+DELIMITER $$
+
+CREATE PROCEDURE CreateTransactionTable()
 BEGIN
 
     DECLARE _Item VARCHAR(50);
@@ -77,4 +80,6 @@ BEGIN
         END LOOP _Fetch;
     CLOSE _Cursor;
 
-END
+END $$
+
+DELIMITER ;
