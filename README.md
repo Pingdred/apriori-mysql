@@ -48,7 +48,7 @@ In the repository, the file `Groceries_Dataset.sql` contains the [Groceries Data
 
 4. Import the `Groceries_Dataset.sql`
 
-5. Import the `CreateTransactiontabel.sql`
+5. Import the `CreateTransactiontable.sql`
  
 6. Import the `Apriori.sql` 
 
@@ -80,6 +80,6 @@ This implementation is not optimized and is extremely slow.
 
 Introducing indexes on the transaction table and `Large_ItemSet_k` tables could speed up the generation of candidate ItemSets and the support calculation, but introducing indexes has some problems:
 - InnoDB supports up to 64 secondary indexes per table, which might not be enough if the number of Items is too high;
-- You could dynamically add and drop indexes while executing the `Apriori` procedure but modifying the information schema is onerous and would perhaps affect performance more than when the introduction of indexes improves it;
+- You could dynamically add and drop indexes while executing the `Apriori` procedure but modifying the information schema is onerous and would perhaps affect performance more than the introduction of indexes improves it;
 
 To solve the indexing problem, one could switch to a different representation of the transaction table, such as the [Compressed Sparse Row](https://en.wikipedia.org/wiki/Sparse_matrix#Compressed_sparse_row_(CSR,_CRS_or_Yale_format)) representation.
